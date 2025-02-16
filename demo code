@@ -1,0 +1,60 @@
+// Example modification based on Bitcoin Core v25.0
+#include <consensus/validation.h>
+#include <node/blockstorage.h>
+#include <policy/policy.h>
+
+class BlockAssembler {
+private:
+    // Transaction classification function
+    bool IsInnovationTx(const CTransactionRef& tx) {
+        // Rule 1: Version ≥3
+        if (tx->nVersion < 3) return false;
+        
+        // Rule 2: Contains non-P2PKH outputs
+        for (const auto& output : tx->vout) {
+            txnouttype type;
+            if (!Solver(output.scriptPubKey, type)) continue;
+            if (type != TX_PUBKEYHASH) return true; // Non-P2PKH script detected
+        }
+        return false;
+    }
+
+    // Block template construction
+    void CreateBlockTemplate() {
+        constexpr double PAYMENT_ALLOCATION = 0.8;
+        const int64_t base_block_size = MAX_BLOCK_SERIALIZED_SIZE;
+        int64_t payment_quota = base_block_size * PAYMENT_ALLOCATION;
+        
+        // Transaction pool segmentation
+        std::vector<CTxMemPool::txiter> payment_txs;
+        std::vector<CTxMemPool::txiter> innovation_txs;
+        
+        for (auto iter : m_mempool.mapTx.project<0>()) {
+            if (IsInnovationTx(iter->GetTx())) {
+                innovation_txs.push_back(iter);
+            } else {
+                payment_txs.push_back(iter);
+            }
+        }
+
+        // Priority packaging for payment transactions
+        for (auto iter : payment_txs) {
+            if (nBlockSize + iter->GetTxSize() > payment_quota) break;
+            AddToBlock(iter); // Include transaction in block
+        }
+
+        // Fill remaining space with innovation transactions
+        for (auto iter : innovation_txs) {
+            if (nBlockSize + iter->GetTxSize() > base_block_size) break;
+            AddToBlock(iter);
+        }
+    }
+};
+
+// Script type detection extension
+txnouttype Solver(const CScript& scriptPubKey) {
+    if (scriptPubKey.IsPayToPublicKeyHash()) {
+        return TX_PUBKEYHASH;
+    }
+    // Other script type detections...
+}
