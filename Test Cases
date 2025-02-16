@@ -1,0 +1,18 @@
+# Payment transaction example
+payment_tx = {
+    "version": 2,
+    "outputs": [{
+        "scriptPubKey": "OP_DUP OP_HASH160 abcd... OP_EQUALVERIFY OP_CHECKSIG" # P2PKH
+    }]
+}
+
+# Innovation transaction example
+innovation_tx = {
+    "version": 3,
+    "outputs": [{
+        "scriptPubKey": "OP_HASH160 1234... OP_EQUAL" # P2SH
+    }]
+}
+
+assert is_innovation_tx(payment_tx) == False
+assert is_innovation_tx(innovation_tx) == True
